@@ -73,6 +73,7 @@ impl EventHandler for Handler {
             msg.author.name.clone(), // Clone the name to avoid partial move
             msg.author.bot,
             msg.guild_id.unwrap().0 as i64,
+            msg.author.hasLeft,
         )
         .await;
 
@@ -140,6 +141,14 @@ impl EventHandler for Handler {
                 }
             }
             */
+
+            crate::services::message::handle_left_server(
+                Arc::new(ctx.clone()),
+                user.user.id.0 as i64,
+                user.user.name.clone(),
+                user.user.bot,
+                user.guild_id.0 as i64,
+            ).await;
         }
     }
 

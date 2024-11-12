@@ -61,7 +61,7 @@ impl UsersRepo for Users {
     async fn update_user(pool: &Pool<Postgres>, user: User) {
         let temp_user: Result<User, Error> = sqlx::query_as!(
             User,
-            "select * from users where id = $1 and guild_id = $2",
+            "select id, score, nick, is_bot, guild_id, hasLeft from users where id = $1 and guild_id = $2",
             user.id,
             user.guild_id
         )
@@ -70,7 +70,7 @@ impl UsersRepo for Users {
         match temp_user {
             Ok(u) => {
                 let res = sqlx::query!(
-                    "UPDATE users SET  score = $1, nick = $2, is_bot = $3, hasLeft = $4 WHERE id = $5 and guild_id = $6",
+                    "UPDATE users SET score = $1, nick = $2, is_bot = $3, hasLeft = $4 WHERE id = $5 and guild_id = $6",
                     u.score + 1,
                     user.nick,
                     user.is_bot,
@@ -104,7 +104,7 @@ impl UsersRepo for Users {
     }
 
     async fn get_users(&self, guild_id: i64) -> Vec<User> {
-        let result = sqlx::query_as!(User, "select * from users WHERE guild_id = $1", guild_id)
+        let result = sqlx::query_as!(User, "select id, score, nick, is_bot, guild_id, hasLeft from users WHERE guild_id = $1", guild_id)
             .fetch_all(&self.pool)
             .await
             .unwrap();
@@ -145,7 +145,7 @@ impl Observer for Users {
             let users_pool = self.pool.clone();
 
             match event {
-                UserEvents::JoinedVocalChannel(user_id, nick, is_bot, guild_id, multiplier) => {
+                UserEvents::JoinedVocalChannel(user_id, nick, is_bot, guild_id, hasLeft, multiplier) => {
                     let (tx, mut rx) = oneshot::channel::<()>();
                     hashmap.write().await.insert(user_id, tx);
                     tokio::spawn(async move {
@@ -154,7 +154,7 @@ impl Observer for Users {
 
                             select! {
                                 _ = tokio::time::sleep(tokio::time::Duration::from_secs(multiplier as u64)) => {
-                                    db::users::Users::update_user(&user_pool_clone, User { id: user_id, score: 0, nick: nick.clone(), is_bot, guild_id})
+                                    db::users::Users::update_user(&user_pool_clone, User { id: user_id, score: 0, nick: nick.clone(), is_bot, guild_id, hasLeft })
                                     .await;
                                 },
                                 _ = &mut rx => {
@@ -171,7 +171,7 @@ impl Observer for Users {
                         let _ = sender.send(());
                     }
                 }
-                UserEvents::SentText(user_id, nick, is_bot, guild_id, multiplier) => {
+                UserEvents::SentText(user_id, nick, is_bot, guild_id, hasLeft, multiplier) => {
                     Users::update_user(
                         &self.pool,
                         User {
@@ -180,9 +180,13 @@ impl Observer for Users {
                             nick,
                             is_bot,
                             guild_id,
+                            hasLeft,
                         },
                     )
                     .await;
+                }
+                UserEvents::LeftServer(user_id) => {
+                    // Handle the event where a user leaves the server
                 }
             }
         }

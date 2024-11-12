@@ -16,6 +16,7 @@ pub async fn increase_score(
     nick: String,
     is_bot: bool,
     guild_id: i64,
+    hasLeft: bool,
 ) {
     let data_read = ctx.data.read().await;
     if let Some(global_state) = data_read.get::<GlobalState>() {
@@ -34,7 +35,7 @@ pub async fn increase_score(
         global_state_users
             .tx
             .send(crate::db::events::UserEvents::SentText(
-                user_id, nick, is_bot, guild_id, multiplier,
+                user_id, nick, is_bot, guild_id, hasLeft, multiplier
             ))
             .unwrap();
         println!("user: {:?} sent message", user_id);
@@ -61,6 +62,7 @@ pub async fn handle_voice(ctx: Context, voice: VoiceState) {
             if voice.channel_id.is_some() {
                 let global_state_users = global_state.users.lock().await.clone();
                 let mut nick: String = "".to_string();
+                let mut hasLeft: bool = false;
                 let mut multiplier = 1;
                 if let Some(guild_id) = voice.guild_id {
                     // assign to nick the nick in the guild
@@ -72,6 +74,13 @@ pub async fn handle_voice(ctx: Context, voice: VoiceState) {
                         .unwrap()
                         .nick
                         .unwrap_or_else(|| voice.member.unwrap().display_name().to_string());
+                    hasLeft = guild_id
+                        .member(&ctx.http, voice.user_id.0)
+                        .await
+                        .ok()
+                        .unwrap()
+                        .hasLeft
+                        .unwrap();
                     let multiplier_result = guilds.get_voice_multiplier(guild_id.0 as i64).await;
                     if let Ok(r) = multiplier_result {
                         multiplier = r
@@ -88,6 +97,7 @@ pub async fn handle_voice(ctx: Context, voice: VoiceState) {
                                 nick,
                                 is_bot,
                                 voice.guild_id.unwrap().0 as i64,
+                                hasLeft,
                                 multiplier,
                             ))
                             .unwrap();
@@ -100,6 +110,25 @@ pub async fn handle_voice(ctx: Context, voice: VoiceState) {
         }
     }
 }
+
+pub async fn handle_left_server(
+    ctx: Arc<Context>,
+    user_id: i64,
+    nick: String,
+    is_bot: bool,
+    guild_id: i64,
+) {
+    let data_read = ctx.data.read().await;
+    if let Some(global_state) = data_read.get::<GlobalState>() {
+        let global_state_users = global_state.users.lock().await.clone();
+        global_state_users
+            .tx
+            .send(crate::db::events::UserEvents::LeftServer(user_id))
+            .unwrap();
+        println!("user: {:?} left server", user_id);
+    }
+}
+
 
 pub struct VoiceStateReady {
     pub member: Member,
@@ -121,11 +150,20 @@ pub async fn init_active_users(ctx: Context, voice: VoiceStateReady) {
         }
 
         let nick: String;
+        let hasLeft: bool;
         match ctx.http.get_user(voice.user_id.0).await {
             Ok(u) => match u.nick_in(ctx.http, voice.guild_id).await {
                 Some(n) => nick = n,
                 _none => nick = u.name,
             },
+            Err(_) => {
+                return;
+            }
+        }
+        match voice.guild_id.member(ctx.http, voice.user_id).await {
+            Ok(m) => {
+                hasLeft = m.has_left().unwrap();
+            }
             Err(_) => {
                 return;
             }
@@ -140,6 +178,7 @@ pub async fn init_active_users(ctx: Context, voice: VoiceStateReady) {
                 nick,
                 voice.member.user.bot,
                 voice.guild_id.0 as i64,
+                hasLeft,
                 multiplier,
             ))
             .unwrap();
