@@ -83,7 +83,7 @@ pub async fn handle_voice(ctx: Context, voice: VoiceState) {
                     false => {
                         global_state_users
                             .tx
-                            .send(crate::db::events::UserEvents::Joined(
+                            .send(crate::db::events::UserEvents::JoinedVocalChannel(
                                 user_id,
                                 nick,
                                 is_bot,
@@ -135,7 +135,7 @@ pub async fn init_active_users(ctx: Context, voice: VoiceStateReady) {
             .lock()
             .await
             .tx
-            .send(crate::db::events::UserEvents::Joined(
+            .send(crate::db::events::UserEvents::JoinedVocalChannel(
                 voice.user_id.0 as i64,
                 nick,
                 voice.member.user.bot,

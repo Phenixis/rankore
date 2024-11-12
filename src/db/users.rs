@@ -140,7 +140,7 @@ impl Observer for Users {
             let users_pool = self.pool.clone();
 
             match event {
-                UserEvents::Joined(user_id, nick, is_bot, guild_id, multiplier) => {
+                UserEvents::JoinedVocalChannel(user_id, nick, is_bot, guild_id, multiplier) => {
                     let (tx, mut rx) = oneshot::channel::<()>();
                     hashmap.write().await.insert(user_id, tx);
                     tokio::spawn(async move {
@@ -159,7 +159,7 @@ impl Observer for Users {
                         }
                     });
                 }
-                UserEvents::Left(user_id) => {
+                UserEvents::LeftVocalChannel(user_id) => {
                     let mut writing_hashmap = hashmap.write().await;
                     let sender = writing_hashmap.remove(&user_id);
                     if let Some(sender) = sender {
