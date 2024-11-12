@@ -31,6 +31,8 @@ pub struct User {
     pub is_bot: bool,
     #[sqlx(default)]
     pub guild_id: i64,
+    #[sqlx(default)]
+    pub hasLeft: bool,
 }
 
 #[async_trait]
@@ -68,10 +70,11 @@ impl UsersRepo for Users {
         match temp_user {
             Ok(u) => {
                 let res = sqlx::query!(
-                    "UPDATE users SET  score = $1, nick = $2, is_bot = $3 WHERE id = $4 and guild_id = $5",
+                    "UPDATE users SET  score = $1, nick = $2, is_bot = $3, hasLeft = $4 WHERE id = $5 and guild_id = $6",
                     u.score + 1,
                     user.nick,
                     user.is_bot,
+                    user.hasLeft,
                     user.id,
                     user.guild_id,
                 )
@@ -86,12 +89,13 @@ impl UsersRepo for Users {
             }
             Err(_) => {
                 let _ = sqlx::query!(
-                    "INSERT into users(id, score, nick, is_bot, guild_id) values ($1, $2, $3, $4, $5)",
+                    "INSERT into users(id, score, nick, is_bot, guild_id, hasLeft) values ($1, $2, $3, $4, $5, $6)",
                     user.id,
                     0,
                     user.nick,
                     user.is_bot,
                     user.guild_id,
+                    user.hasLeft,
                 )
                 .execute(pool)
                 .await;
@@ -113,6 +117,7 @@ impl UsersRepo for Users {
                 nick: user.nick.clone(),
                 is_bot: user.is_bot,
                 guild_id: user.guild_id,
+                hasLeft: user.hasLeft,
             })
             .collect();
 
