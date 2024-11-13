@@ -145,7 +145,7 @@ impl Observer for Users {
             let users_pool = self.pool.clone();
 
             match event {
-                UserEvents::JoinedVocalChannel(user_id, nick, is_bot, guild_id, hasLeft, multiplier) => {
+                UserEvents::JoinedVocalChannel(user_id, nick, is_bot, guild_id, multiplier) => {
                     let (tx, mut rx) = oneshot::channel::<()>();
                     hashmap.write().await.insert(user_id, tx);
                     tokio::spawn(async move {
@@ -154,7 +154,7 @@ impl Observer for Users {
 
                             select! {
                                 _ = tokio::time::sleep(tokio::time::Duration::from_secs(multiplier as u64)) => {
-                                    db::users::Users::update_user(&user_pool_clone, User { id: user_id, score: 0, nick: nick.clone(), is_bot, guild_id, hasLeft })
+                                    db::users::Users::update_user(&user_pool_clone, User { id: user_id, score: 0, nick: nick.clone(), is_bot, guild_id, hasLeft: false, })
                                     .await;
                                 },
                                 _ = &mut rx => {
@@ -171,7 +171,7 @@ impl Observer for Users {
                         let _ = sender.send(());
                     }
                 }
-                UserEvents::SentText(user_id, nick, is_bot, guild_id, hasLeft, multiplier) => {
+                UserEvents::SentText(user_id, nick, is_bot, guild_id, multiplier) => {
                     Users::update_user(
                         &self.pool,
                         User {
@@ -180,7 +180,7 @@ impl Observer for Users {
                             nick,
                             is_bot,
                             guild_id,
-                            hasLeft,
+                            hasLeft: false,
                         },
                     )
                     .await;

@@ -72,8 +72,7 @@ impl EventHandler for Handler {
             msg.author.id.0 as i64,
             msg.author.name.clone(), // Clone the name to avoid partial move
             msg.author.bot,
-            msg.guild_id.unwrap().0 as i64,
-            msg.author.hasLeft,
+            msg.guild_id.unwrap().0 as i64
         )
         .await;
 
